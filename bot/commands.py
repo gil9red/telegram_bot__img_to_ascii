@@ -4,6 +4,8 @@
 __author__ = "ipetrash"
 
 
+from functools import partial
+
 import requests
 
 from telegram import (
@@ -34,6 +36,14 @@ from third_party.auto_in_progress_message import (
 from config import SIZES, DEFAULT_SIZE, FORMAT_BUTTON_SIZE, FORMAT_BUTTON_SIZE_SELECTED
 
 
+# Decorator
+show_temp_message_decorator_on_progress = partial(
+    show_temp_message_decorator,
+    text=SeverityEnum.INFO.get_text("In progress {value}"),
+    progress_value=ProgressValue.RECTS_SMALL,
+)
+
+
 @log_func(log)
 def on_start(update: Update, context: CallbackContext):
     text = "Bot for converting image to ascii art."
@@ -41,20 +51,14 @@ def on_start(update: Update, context: CallbackContext):
 
 
 @log_func(log)
-@show_temp_message_decorator(
-    text=SeverityEnum.INFO.get_text("In progress {value}"),
-    progress_value=ProgressValue.RECTS_SMALL,
-)
+@show_temp_message_decorator_on_progress()
 def on_request(update: Update, context: CallbackContext):
     message = update.effective_message
     # reply_playlist(message.text, update, context, show_full=False)
 
 
 @log_func(log)
-@show_temp_message_decorator(
-    text=SeverityEnum.INFO.get_text("In progress {value}"),
-    progress_value=ProgressValue.RECTS_SMALL,
-)
+@show_temp_message_decorator_on_progress()
 def on_photo(update: Update, context: CallbackContext):
     message = update.effective_message
     # chat_id = message.chat_id
