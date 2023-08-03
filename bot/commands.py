@@ -4,6 +4,8 @@
 __author__ = "ipetrash"
 
 
+import html
+
 from functools import partial
 
 # pip install ascii-magic
@@ -36,6 +38,7 @@ from third_party.auto_in_progress_message import (
     ProgressValue,
 )
 from config import (
+    MAX_MESSAGE_LENGTH,
     SIZES,
     DEFAULT_SIZE,
     IGNORE_SIZE,
@@ -57,8 +60,19 @@ def reply_ascii(
         reply_message(text=f"Error: {e}", update=update, severity=SeverityEnum.ERROR)
         return
 
-    ascii = my_art.to_ascii(columns=selected_size, monochrome=True)
-    ascii = "\n".join(map(str.rstrip, ascii.splitlines()))
+    text = my_art.to_ascii(columns=selected_size, monochrome=True)
+    text = "\n".join(map(str.rstrip, text.splitlines()))
+    text = html.escape(text)
+
+    header = "<pre>"
+    footer = "</pre>"
+    placeholder = "..."
+
+    if MAX_MESSAGE_LENGTH - len(header) - len(footer) > MAX_MESSAGE_LENGTH:
+        text = text[: MAX_MESSAGE_LENGTH - len(placeholder) - len(header) - len(footer)] + placeholder
+        text = html.escape(text)
+
+    text = header + text + footer
 
     buttons = []
     for i in range(0, len(SIZES), SIZES_COLUMNS):
@@ -81,7 +95,7 @@ def reply_ascii(
         buttons.append(row)
 
     reply_message(
-        text=ascii,
+        text=text,
         update=update,
         reply_markup=InlineKeyboardMarkup(buttons),
         as_new_message=as_new_message,
@@ -127,6 +141,7 @@ def on_photo(update: Update, _: CallbackContext):
 
 
 @log_func(log)
+@show_temp_message_decorator_on_progress()
 def on_callback_change_size(update: Update, context: CallbackContext):
     query = update.callback_query
     if query:
