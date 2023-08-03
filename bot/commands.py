@@ -105,7 +105,10 @@ def get_url(message: Message) -> str:
 
 @log_func(log)
 def on_start(update: Update, _: CallbackContext):
-    text = "Bot for converting image to ascii art."
+    text = (
+        "Bot for converting image to ascii art.\n"
+        "Send me the url with the image or the image itself"
+    )
     reply_message(text, update)
 
 
