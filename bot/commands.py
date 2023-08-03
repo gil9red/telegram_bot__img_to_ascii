@@ -6,12 +6,14 @@ __author__ = "ipetrash"
 
 from functools import partial
 
-import requests
+# pip install ascii-magic
+from ascii_magic import AsciiArt
 
 from telegram import (
     Update,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    Message,
 )
 from telegram.ext import (
     Dispatcher,
@@ -33,7 +35,57 @@ from third_party.auto_in_progress_message import (
     show_temp_message_decorator,
     ProgressValue,
 )
-from config import SIZES, DEFAULT_SIZE, FORMAT_BUTTON_SIZE, FORMAT_BUTTON_SIZE_SELECTED
+from config import (
+    SIZES,
+    DEFAULT_SIZE,
+    IGNORE_SIZE,
+    SIZES_COLUMNS,
+    FORMAT_BUTTON_SIZE,
+    FORMAT_BUTTON_SIZE_SELECTED,
+)
+
+
+def reply_ascii(
+    update: Update,
+    url: str,
+    selected_size: int = DEFAULT_SIZE,
+    as_new_message: bool = True,
+):
+    try:
+        my_art = AsciiArt.from_url(url)
+    except Exception as e:
+        reply_message(text=f"Error: {e}", update=update, severity=SeverityEnum.ERROR)
+        return
+
+    ascii = my_art.to_ascii(columns=selected_size, monochrome=True)
+    ascii = "\n".join(map(str.rstrip, ascii.splitlines()))
+
+    buttons = []
+    for i in range(0, len(SIZES), SIZES_COLUMNS):
+        row = []
+        for size in SIZES[i : i + SIZES_COLUMNS]:
+            if selected_size == size:
+                button_text = FORMAT_BUTTON_SIZE_SELECTED.format(size)
+                callback_data = fill_string_pattern(PATTERN_CHANGE_SIZE, IGNORE_SIZE)
+            else:
+                button_text = FORMAT_BUTTON_SIZE.format(size)
+                callback_data = fill_string_pattern(PATTERN_CHANGE_SIZE, size)
+
+            row.append(
+                InlineKeyboardButton(
+                    text=button_text,
+                    callback_data=callback_data,
+                )
+            )
+
+        buttons.append(row)
+
+    reply_message(
+        text=ascii,
+        update=update,
+        reply_markup=InlineKeyboardMarkup(buttons),
+        as_new_message=as_new_message,
+    )
 
 
 # Decorator
@@ -44,35 +96,31 @@ show_temp_message_decorator_on_progress = partial(
 )
 
 
+def get_url(message: Message) -> str:
+    if message.photo:
+        return message.photo[-1].get_file().file_path
+
+    return message.text
+
+
 @log_func(log)
-def on_start(update: Update, context: CallbackContext):
+def on_start(update: Update, _: CallbackContext):
     text = "Bot for converting image to ascii art."
     reply_message(text, update)
 
 
 @log_func(log)
 @show_temp_message_decorator_on_progress()
-def on_request(update: Update, context: CallbackContext):
+def on_request(update: Update, _: CallbackContext):
     message = update.effective_message
-    # reply_playlist(message.text, update, context, show_full=False)
+    reply_ascii(update, url=get_url(message))
 
 
 @log_func(log)
 @show_temp_message_decorator_on_progress()
-def on_photo(update: Update, context: CallbackContext):
+def on_photo(update: Update, _: CallbackContext):
     message = update.effective_message
-    # chat_id = message.chat_id
-    #
-    # url = message.photo[-1].get_file().file_path
-    # rs = requests.get(url)
-    #
-    # file_name = get_file_name_image(chat_id)
-    # file_name.write_bytes(rs.content)
-    #
-    # message.reply_text(
-    #     _('COMMANDS_ARE_NOW_AVAILABLE'),
-    #     reply_markup=REPLY_KEYBOARD_MARKUP
-    # )
+    reply_ascii(update, url=get_url(message))
 
 
 @log_func(log)
@@ -82,8 +130,16 @@ def on_callback_change_size(update: Update, context: CallbackContext):
         query.answer()
 
     size = int(context.match.group(1))
-    # playlist_id = context.match.group(1)
-    # reply_playlist(playlist_id, update, context, show_full=True)
+    if size == IGNORE_SIZE:  # Для уже выбранного размера
+        return
+
+    # Watch previous message
+    message = update.effective_message
+    if message.reply_to_message:
+        message = message.reply_to_message
+
+    url = get_url(message)
+    reply_ascii(update, url=url, selected_size=size, as_new_message=False)
 
 
 def on_error(update: Update, context: CallbackContext):
